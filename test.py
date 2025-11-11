@@ -1,11 +1,33 @@
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
+import platform
+from matplotlib import rc
 
-# 1) CSV 파일 불러오기
-file_path = "________________20251104182351.csv"  # 파일명만 바꿔주면 됨
+
+# 한글 폰트 설정 (Windows 기준)
+plt.rcParams['font.family'] = 'Malgun Gothic'
+plt.rcParams['axes.unicode_minus'] = False  # 마이너스 기호 깨짐 방지
+
+# 깃허브 리눅스 기준
+if platform.system() == 'Linux':
+    fontname = './NanumGothic.ttf'
+    font_files = fm.findSystemFonts(fontpaths=fontname)
+    fm.fontManager.addfont(fontname)
+    fm._load_fontmanager(try_read_cache=False)
+    rc('font', family='NanumGothic')
+
+    
+st.title("기관별 예산 분석 대시보드")
+
+# ✅ CSV 파일 경로 (같은 폴더에 있을 경우)
+file_path = "________________20251104182351.csv"  # ← 여기를 네 CSV 파일명으로 바꿔줘
+
+# CSV 불러오기
 df = pd.read_csv(file_path)
 
-# 2) 숫자형 컬럼 전처리 (콤마 제거 후 int 변환)
+# 숫자형 컬럼 전처리
 num_cols = [
     "(세입)예산현액(원)", "(세입)수납액(원)", "(세입)증감액(원)",
     "(세출)예산현액(원)", "(세출)지출액(원)", "(세출)증감액(원)",
@@ -15,32 +37,28 @@ num_cols = [
 for col in num_cols:
     df[col] = df[col].str.replace(",", "").astype(int)
 
-# 3) 데이터 확인
-print("\n===== 데이터 기본 정보 =====")
-print(df.head())
-print(df.describe())
-
-# 4) 기관별 예산 집행 효율 계산
+# 세출 집행률 계산
 df["세출집행률(%)"] = (df["(세출)지출액(원)"] / df["(세출)예산현액(원)"]) * 100
 
-# 5) 기관별 평균 집행률 상위 10개
-eff_top = df.groupby("소관명")["세출집행률(%)"].mean().sort_values(ascending=False).head(10)
-print("\n===== 세출 집행 효율 상위 10개 기관 =====")
-print(eff_top)
+# 데이터 미리보기
+st.subheader("📌 데이터 미리보기")
+st.dataframe(df.head())
 
-# 6) 연도별 총 예산 변화
+# 기관 선택
+selected_org = st.selectbox("기관을 선택하세요", sorted(df["소관명"].unique()))
+filtered = df[df["소관명"] == selected_org]
+
+st.subheader(f"📌 선택한 기관 분석: {selected_org}")
+st.dataframe(filtered)
+
+# 연도별 예산 변화 그래프
 year_budget = df.groupby("회계연도")["(세출)예산현액(원)"].sum()
 
-print("\n===== 연도별 총 세출 예산 =====")
-print(year_budget)
+st.subheader("📈 연도별 총 세출 예산 추세")
+fig, ax = plt.subplots()
+ax.plot(year_budget.index, year_budget.values, marker='o')
+ax.set_xlabel("회계연도")
+ax.set_ylabel("총 세출 예산액(원)")
+ax.set_title("연도별 총 세출 예산 추세")
 
-# 7) 시각화: 연도별 총 예산 변화 그래프
-plt.figure(figsize=(10,5))
-plt.plot(year_budget.index, year_budget.values, marker='o')
-plt.title("연도별 총 세출 예산 추세")
-plt.xlabel("회계연도")
-plt.ylabel("총 예산액(원)")
-plt.xticks(rotation=45)
-plt.show()
-
-
+st.pyplot(fig)
